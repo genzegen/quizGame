@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:gameflow/pages/navbar_pages/create.dart';
+import 'package:gameflow/pages/navbar_pages/createpagecontent.dart';
 import 'package:gameflow/pages/navbar_pages/search.dart';
 import 'package:gameflow/pages/profile.dart';
 import 'navbar_pages/favorite.dart';
@@ -49,12 +49,12 @@ class _HomePageState extends State<HomePage> {
 
   final PageController pageController = PageController();
 
-  static List<Widget> _pages = <Widget>[
-    HomePageContent(),
-    SearchPage(),
-    CreatePage(),
-    LeaderboardPage(),
-    FavoritePage(),
+  static final List<Widget> _pages = <Widget>[
+    const HomePageContent(),
+    const SearchPage(),
+    const CreatePageContent(),
+    const LeaderboardPage(),
+    const FavoritePage(),
   ];
 
   void _onItemTapped(int index) {
@@ -73,6 +73,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: Row(
           children: [
@@ -90,7 +91,7 @@ class _HomePageState extends State<HomePage> {
               },
             ),
             const SizedBox(width: 10),
-            Text(username ?? 'User'),
+            Text(username ?? 'User', style: const TextStyle(fontWeight: FontWeight.bold),),
           ],
         ),
         actions: [
@@ -138,7 +139,7 @@ class _HomePageState extends State<HomePage> {
         unselectedItemColor: Theme.of(context).colorScheme.secondary,
         selectedItemColor: Theme.of(context).colorScheme.inversePrimary,
         selectedFontSize: 16,
-        selectedIconTheme: const IconThemeData(size: 24),
+        selectedIconTheme: const IconThemeData(size: 26),
         backgroundColor: Theme.of(context).colorScheme.tertiary,
         onTap: _onItemTapped,
       ),

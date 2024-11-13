@@ -11,12 +11,16 @@ class ProfilePage extends StatelessWidget {
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.primary,
-        title: Text("${username ?? 'User'}'s Profile"),
+        title: Text("${username ?? 'User'}'s Profile", style: const TextStyle(fontWeight: FontWeight.bold),),
       ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // GestureDetector(
+            //   child: Image(image: image),
+            //   onTap: () {},
+            // ),
             Text(username ?? 'User'),
 
           ],

@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 ThemeData darkMode = ThemeData(
   brightness: Brightness.dark,
+  cardColor: Color(0xff414141),
   colorScheme: ColorScheme.dark(
-    surface: Colors.grey.shade900,
+    surface: const Color(0xff2A2A2A),
     primary: Colors.grey.shade800,
     secondary: Colors.grey.shade700,
     tertiary: Colors.grey.shade500,

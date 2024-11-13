@@ -7,8 +7,6 @@ import 'package:gameflow/components/button.dart';
 import 'package:gameflow/components/textfield.dart';
 import 'package:gameflow/helper/helper_function.dart';
 
-import '../helper/helper_function.dart';
-
 class RegisterPage extends StatefulWidget {
   final void Function()? onTap;
 

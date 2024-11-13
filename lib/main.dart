@@ -1,6 +1,9 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:gameflow/auth/auth.dart';
+import 'package:gameflow/game/gamepage.dart';
+import 'package:gameflow/game/upload.dart';
+import 'package:gameflow/pages/navbar_pages/create.dart';
 import 'package:gameflow/pages/profile.dart';
 import 'package:gameflow/theme/darkmode.dart';
 import 'package:gameflow/theme/lightmode.dart';
@@ -40,6 +43,9 @@ class _MyAppState extends State<MyApp> {
 
       routes: {
         '/profile' : (context) => const ProfilePage(),
+        '/gamepage' : (context) => const GamePage(quizId: '',),
+        '/upload' : (context) => const UploadPage(),
+        '/createpage' : (context) => const CreatePage(),
       },
     );
   }
