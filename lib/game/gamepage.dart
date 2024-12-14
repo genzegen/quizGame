@@ -1,6 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:gameflow/game/question.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 
 class GamePage extends StatefulWidget {
   final String quizId;
@@ -14,25 +17,51 @@ class _GamePageState extends State<GamePage> {
   late Future<List<Question>> _questionsFuture;
   int _currentQuestionIndex = 0;
   int _score = 0;
-  late List<Question> _questions;
+  int _correctAnswers = 0;
+  List<Question>? _questions;
   bool _isAnswerSelected = false;
   bool _isAnswerCorrect = false;
   bool _isGameStarted = false;
-  int _remainingTime = 5; // 5 seconds per question
-  int _countdownTime = 3; // 3-second countdown before the game starts
+  bool _isGameOver = false;
+  int _remainingTime = 5;
+  int _countdownTime = 3;
   Timer? _timer;
   Timer? _countdownTimer;
+
+  late StreamSubscription<AccelerometerEvent> _accelerometerSubscription;
+  final Stopwatch _questionStopwatch = Stopwatch(); // To track time per question
 
   @override
   void initState() {
     super.initState();
     _questionsFuture = _fetchQuestions(widget.quizId);
+    _questionsFuture.then((questions) {
+      setState(() {
+        _questions = questions;
+      });
+      _startGame();
+    });
 
-    // Start the game countdown immediately after the page is loaded
-    _startGame();
+    // Listen for accelerometer events (tilt detection)
+    _accelerometerSubscription = accelerometerEventStream().listen((event) {
+      if (_questions != null && _currentQuestionIndex < _questions!.length) {
+        if (event.x < -5 && !_isAnswerSelected) {
+          _handleAnswerSelection(_questions![_currentQuestionIndex].option2);
+        } else if (event.x > 5 && !_isAnswerSelected) {
+          _handleAnswerSelection(_questions![_currentQuestionIndex].option1);
+        }
+      }
+    });
   }
 
-  // Fetch questions for the given quizId
+  @override
+  void dispose() {
+    _accelerometerSubscription.cancel();
+    _timer?.cancel();
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
+
   Future<List<Question>> _fetchQuestions(String quizId) async {
     final questionsQuery = await FirebaseFirestore.instance
         .collection('quizzes')
@@ -43,16 +72,14 @@ class _GamePageState extends State<GamePage> {
     return questionsQuery.docs.map((doc) => Question.fromDocument(doc.data())).toList();
   }
 
-  // Start the game after the 3-second countdown
   void _startGame() {
-    // Start the countdown timer
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_countdownTime == 0) {
         _countdownTimer?.cancel();
         setState(() {
           _isGameStarted = true;
         });
-        _startQuestionTimer(); // Start the question timer once game starts
+        _startQuestionTimer();
       } else {
         setState(() {
           _countdownTime--;
@@ -61,9 +88,9 @@ class _GamePageState extends State<GamePage> {
     });
   }
 
-  // Start the 5-second timer for each question
   void _startQuestionTimer() {
-    _remainingTime = 5; // 5 seconds per question
+    _remainingTime = 5;
+    _questionStopwatch.start();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_remainingTime == 0) {
         _timer?.cancel();
@@ -77,52 +104,122 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _goToNextQuestion() {
-    if (_currentQuestionIndex < _questions.length - 1) {
+    if (_currentQuestionIndex < (_questions?.length ?? 0) - 1) {
       setState(() {
         _currentQuestionIndex++;
-        _isAnswerSelected = false; // Reset answer selection for the next question
-        _isAnswerCorrect = false; // Reset answer feedback
+        _isAnswerSelected = false;
+        _isAnswerCorrect = false;
       });
-      _startQuestionTimer(); // Start the timer for the next question
+      _startQuestionTimer();
     } else {
       _endGame();
     }
   }
 
   void _endGame() {
-    // Show the final score after the game is completed
+    if (_isGameOver) return;
+
+    // Stop the stopwatch to calculate time for the last question
+    _questionStopwatch.stop();
+
+    setState(() {
+      _isGameOver = true;
+    });
+
+    // Save the play data to Firestore
+    _savePlayData();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Game Over"),
-        content: Text("Your score: $_score/${_questions.length}"),
+        content: Text("Your score: $_score\nCorrect Answers: $_correctAnswers/${_questions?.length ?? 0}"),
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.pop(context); // Close the game over dialog
-              Navigator.pop(context); // Go back to the previous screen
+              Navigator.pop(context);
+              Navigator.pop(context);
             },
             child: const Text('OK'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => GamePage(quizId: widget.quizId),
+                ),
+              );
+            },
+            child: const Text('Try Again'),
           ),
         ],
       ),
     );
   }
 
+  String getUserId() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      return user.uid;  // Return the userId (UID) of the logged-in user
+    } else {
+      throw Exception("No user is currently logged in.");
+    }
+  }
+
+  Future<void> _savePlayData() async {
+    final userId = getUserId();
+    final quizId = widget.quizId;
+    final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
+
+    await FirebaseFirestore.instance.runTransaction((transaction) async {
+      final userDoc = await transaction.get(userRef);
+
+      // Get the current high score and total score
+      int totalScore = userDoc.data()?['totalScore'] ?? 0;
+      int currentHighScore = userDoc.data()?['scores']?[quizId]?['highScore'] ?? 0;
+
+      if (_score > currentHighScore) {
+        // Calculate the score difference to add to the total score
+        int scoreDifference = _score - currentHighScore;
+        totalScore += scoreDifference;
+
+        // Update Firestore with the new high score, last score, and cumulative total score
+        transaction.update(userRef, {
+          'totalScore': totalScore,
+          'scores.$quizId': {
+            'highScore': _score,
+            'lastScore': _score,
+            'correctAnswers': _correctAnswers,
+          },
+        });
+      } else {
+        // Update only the last score if it's not a new high score
+        transaction.update(userRef, {
+          'scores.$quizId.lastScore': _score,
+        });
+      }
+    });
+  }
+
   void _handleAnswerSelection(String selectedOption) {
     if (!_isAnswerSelected) {
       setState(() {
         _isAnswerSelected = true;
-        final correctAnswer = _questions[_currentQuestionIndex].correctAnswer;
+        final correctAnswer = _questions![_currentQuestionIndex].correctAnswer;
         if (selectedOption == correctAnswer) {
-          _score++;
-          _isAnswerCorrect = true;
+          _score += _remainingTime;  // Score based on remaining time (bonus)
+          _correctAnswers++;
+          _isAnswerCorrect = true;  // Answer is correct
         } else {
-          _isAnswerCorrect = false;
+          _isAnswerCorrect = false;  // Answer is incorrect
         }
       });
 
-      // Wait for 0.5 seconds before going to the next question
+      _questionStopwatch.stop();  // Stop the stopwatch when the answer is selected
+
+      // Delay the transition to the next question to show feedback
       Future.delayed(const Duration(milliseconds: 500), _goToNextQuestion);
     }
   }
@@ -130,10 +227,6 @@ class _GamePageState extends State<GamePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Game Page'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-      ),
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: FutureBuilder<List<Question>>(
         future: _questionsFuture,
@@ -146,15 +239,14 @@ class _GamePageState extends State<GamePage> {
             return const Center(child: Text("No questions found"));
           }
 
-          _questions = snapshot.data!;
-          final currentQuestion = _questions[_currentQuestionIndex];
+          _questions = snapshot.data;
+          final currentQuestion = _questions![_currentQuestionIndex];
 
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Countdown or Game Start
                 if (!_isGameStarted)
                   Text(
                     'Starting in: $_countdownTime',
@@ -162,7 +254,7 @@ class _GamePageState extends State<GamePage> {
                   ),
                 if (_isGameStarted) ...[
                   Text(
-                    'Question ${_currentQuestionIndex + 1}/${_questions.length}',
+                    'Question ${_currentQuestionIndex + 1}/${_questions!.length}',
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 20),
@@ -173,7 +265,7 @@ class _GamePageState extends State<GamePage> {
                   ),
                   const SizedBox(height: 20),
                   currentQuestion.imageUrl.isNotEmpty
-                      ? Image.network(currentQuestion.imageUrl)
+                      ? Image.network(currentQuestion.imageUrl, scale: 2)
                       : Container(),
                   const SizedBox(height: 20),
                   Text(
@@ -186,66 +278,38 @@ class _GamePageState extends State<GamePage> {
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 30),
-                  ElevatedButton(
-                    onPressed: () => _handleAnswerSelection(currentQuestion.option1),
-                    child: Text(currentQuestion.option1),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isAnswerSelected
-                          ? (_isAnswerCorrect ? Colors.green : Colors.red)
-                          : Theme.of(context).colorScheme.tertiary,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+                      ElevatedButton(
+                        onPressed: () => _handleAnswerSelection(currentQuestion.option1),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _isAnswerSelected
+                              ? (_isAnswerCorrect ? Colors.green : Colors.red)
+                              : Theme.of(context).colorScheme.tertiary,
+                        ),
+                        child: Text(currentQuestion.option1, style: const TextStyle(fontSize: 20)),
+                      ),
+                      SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+                      ElevatedButton(
+                        onPressed: () => _handleAnswerSelection(currentQuestion.option2),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _isAnswerSelected
+                              ? (_isAnswerCorrect ? Colors.green : Colors.red)
+                              : Theme.of(context).colorScheme.tertiary,
+                        ),
+                        child: Text(currentQuestion.option2, style: const TextStyle(fontSize: 20)),
+                      ),
+                      SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  ElevatedButton(
-                    onPressed: () => _handleAnswerSelection(currentQuestion.option2),
-                    child: Text(currentQuestion.option2),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isAnswerSelected
-                          ? (_isAnswerCorrect ? Colors.green : Colors.red)
-                          : Theme.of(context).colorScheme.tertiary,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _goToNextQuestion,
-                    child: const Text('Next Question'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.tertiary,
-                    ),
-                  ),
-                ],
+                ]
               ],
             ),
           );
         },
       ),
-    );
-  }
-}
-
-class Question {
-  final String correctAnswer;
-  final String option1;
-  final String option2;
-  final String imageUrl;
-  final String title;
-
-  Question({
-    required this.correctAnswer,
-    required this.option1,
-    required this.option2,
-    required this.imageUrl,
-    required this.title,
-  });
-
-  // Factory constructor to create Question object from Firestore document
-  factory Question.fromDocument(Map<String, dynamic> doc) {
-    return Question(
-      correctAnswer: doc['correctAnswer'] ?? 'No correct answer',
-      option1: doc['option1'] ?? 'Option 1 not available',
-      option2: doc['option2'] ?? 'Option 2 not available',
-      imageUrl: doc['imageUrl'] ?? '',
-      title: doc['title'] ?? '',
     );
   }
 }

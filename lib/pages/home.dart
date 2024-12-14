@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:gameflow/pages/navbar_pages/createpagecontent.dart';
 import 'package:gameflow/pages/navbar_pages/search.dart';
-import 'package:gameflow/pages/profile.dart';
+import 'package:gameflow/pages/userprofile.dart';
 import 'navbar_pages/favorite.dart';
 import 'navbar_pages/homepagecontent.dart';
 import 'navbar_pages/leaderboard.dart';
@@ -91,7 +91,7 @@ class _HomePageState extends State<HomePage> {
               },
             ),
             const SizedBox(width: 10),
-            Text(username ?? 'User', style: const TextStyle(fontWeight: FontWeight.bold),),
+            Text(username ?? 'User', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 21),),
           ],
         ),
         actions: [

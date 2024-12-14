@@ -22,6 +22,7 @@ class _CreatePageState extends State<CreatePage> {
 
   String? selectedOption;
   String? title;
+  String? titleLower;
   String? description;
   int currentRound = 1;
   final int maxRounds = 2;  // Max rounds limit
@@ -41,6 +42,7 @@ class _CreatePageState extends State<CreatePage> {
     final quizDoc = await FirebaseFirestore.instance.collection('quizzes').add({
       'description': descriptionController.text,
       'title': titleController.text,
+      'titleLower': titleController.text.toLowerCase(),
       'createdAt': Timestamp.now(),
       'userId': user?.uid,
     });
@@ -208,7 +210,7 @@ class _CreatePageState extends State<CreatePage> {
                   children: [
                     Text(title ?? titleController.text,
                         style: const TextStyle(
-                            fontSize: 25, fontWeight: FontWeight.bold)),
+                            fontSize: 30, fontWeight: FontWeight.bold)),
                     Text(description ?? descriptionController.text,
                         style: const TextStyle(
                             fontSize: 20, fontWeight: FontWeight.bold)),

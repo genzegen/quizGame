@@ -4,7 +4,7 @@ import 'package:gameflow/auth/auth.dart';
 import 'package:gameflow/game/gamepage.dart';
 import 'package:gameflow/game/upload.dart';
 import 'package:gameflow/pages/navbar_pages/create.dart';
-import 'package:gameflow/pages/profile.dart';
+import 'package:gameflow/pages/userprofile.dart';
 import 'package:gameflow/theme/darkmode.dart';
 import 'package:gameflow/theme/lightmode.dart';
 
@@ -29,6 +29,7 @@ class _MyAppState extends State<MyApp> {
   void _toggleTheme() {
     setState(() {
       _themeMode = _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+      
     });
   }
 
@@ -42,7 +43,7 @@ class _MyAppState extends State<MyApp> {
       themeMode: _themeMode,
 
       routes: {
-        '/profile' : (context) => const ProfilePage(),
+        '/profile' : (context) => ProfilePage(),
         '/gamepage' : (context) => const GamePage(quizId: '',),
         '/upload' : (context) => const UploadPage(),
         '/createpage' : (context) => const CreatePage(),

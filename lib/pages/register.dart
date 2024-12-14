@@ -3,9 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
+import 'package:gameflow/auth/login_or_register.dart';
 import 'package:gameflow/components/button.dart';
 import 'package:gameflow/components/textfield.dart';
 import 'package:gameflow/helper/helper_function.dart';
+import 'package:gameflow/pages/login.dart';
 
 class RegisterPage extends StatefulWidget {
   final void Function()? onTap;
@@ -27,48 +29,66 @@ class _RegisterPageState extends State<RegisterPage> {
     // showing loading circle
     showDialog(
       context: context,
-      builder: (context) =>
-      const Center(
-        child: CircularProgressIndicator(),
-      ),
+      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
-    //matching passwords
+    // matching passwords
     if (passwordController.text != confirmPwController.text) {
-      //showing loading circle
+      // dismiss loading circle
       Navigator.pop(context);
-
-      //showing error msg
       displayMessageToUsers("Passwords do not match!", context);
     } else {
-      //creating users
       try {
+        // create user with Firebase Authentication
         UserCredential? userCredential =
         await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: emailController.text,
           password: passwordController.text,
         );
-        Navigator.pop(context);
 
-        // get user's uid
-        String uid = userCredential.user!.uid;
+        // Check if userCredential is not null and user is created
+        if (userCredential != null) {
+          String uid = userCredential.user!.uid;
 
-        await FirebaseFirestore.instance.collection('users').doc(uid).set({
-          'username' : usernameController.text,
-          'email' : emailController.text,
-          'createdAt' : FieldValue.serverTimestamp(),
-        });
+          // Store user data in Firestore
+          await FirebaseFirestore.instance.collection('users').doc(uid).set({
+            'username': usernameController.text,
+            'email': emailController.text,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
 
-        print('User registered');
-        Navigator.pop(context);
+          // Print UID for debugging
+          print('User registered with UID: $uid');
+
+          // Close loading dialog
+          Navigator.pop(context);
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => LoginOrRegister(), // Ensure you have LoginPage widget ready
+            ),
+          );
+
+          // You can navigate to the next screen if needed
+        } else {
+          // Handle case when user creation failed
+          Navigator.pop(context);
+          displayMessageToUsers("User creation failed. Try again.", context);
+        }
       } on FirebaseAuthException catch (e) {
-        //showing circle
+        // dismiss loading circle
         Navigator.pop(context);
-        //displaying exception caught
+
+        // Log the error for debugging
+        print('Error: ${e.message}');
+
+        // Displaying the error to the user
         displayMessageToUsers(e.code, context);
       }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
